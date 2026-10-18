@@ -1,0 +1,33 @@
+
+# Python virtual environments
+.venv/
+venv/
+**/.venv/
+
+# Python cache and test files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node.js dependencies
+node_modules/
+**/node_modules/
+
+# Generated frontend build
+frontend/dist/
+
+# Local database
+backend/entitlesim.db
+
+# Generated Python package metadata
+backend/*.egg-info/
+
+# Secrets and local environment settings
+.env
+.env.*
+!.env.example
+
+# Editor and operating system files
+.vscode/
+.DS_Store
+Thumbs.db
