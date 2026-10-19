@@ -142,14 +142,27 @@ class VerificationEngine:
             )
             violations.extend(step_viols)
 
+            all_tenants = list(parsed.tenants.keys())
+            if ev.tenant and ev.tenant not in all_tenants:
+                all_tenants.append(ev.tenant)
+
+            expected_by_tenant = {
+                t: expected_states[t].to_dict()
+                if t in expected_states and hasattr(expected_states[t], "to_dict")
+                else (expected_states.get(t) or {})
+                for t in all_tenants
+            }
+            observed_by_tenant = {
+                t: sut.get_tenant_snapshot(t)
+                for t in all_tenants
+            }
+
             trace_results.append(
                 {
                     "step": step_num,
                     "event": ev.to_dict(),
-                    "expected": expected_states.get(ev.tenant).to_dict()
-                    if expected_states.get(ev.tenant)
-                    else {},
-                    "observed": sut.get_tenant_snapshot(ev.tenant),
+                    "expected": expected_by_tenant,
+                    "observed": observed_by_tenant,
                     "violations": [
                         {"id": v.id, "tenant": v.tenant, "message": v.message}
                         for v in step_viols

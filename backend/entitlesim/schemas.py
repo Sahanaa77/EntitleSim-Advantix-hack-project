@@ -131,3 +131,9 @@ class SuiteExportFile(BaseModel):
 
 class SuiteExportResponse(BaseModel):
     files: List[SuiteExportFile]
+
+
+class SimulateRequest(BaseModel):
+    model: Dict[str, Any]
+    events: List[Dict[str, Any]] = Field(default_factory=list)
+    fixed: bool = False

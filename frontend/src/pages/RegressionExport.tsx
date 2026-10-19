@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { exportCounterexample, exportSuite } from '../lib/api'
 
 export const RegressionExport: React.FC = () => {
-  const { selectedCx, currentRun } = useApp()
+  const { selectedCx, currentRun, toast } = useApp()
 
   const [format, setFormat] = useState<'pytest' | 'json'>('pytest')
   const [copied, setCopied] = useState(false)
@@ -33,6 +33,7 @@ export const RegressionExport: React.FC = () => {
     navigator.clipboard.writeText(exportData.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+    toast('Copied', 'Exported script copied to clipboard', 'info')
   }
 
   const handleDownload = () => {
@@ -44,6 +45,7 @@ export const RegressionExport: React.FC = () => {
     a.download = exportData.filename
     a.click()
     URL.revokeObjectURL(url)
+    toast('Downloaded', `Saved ${exportData.filename}`, 'info')
   }
 
   const handleExportSuite = async () => {
@@ -52,8 +54,10 @@ export const RegressionExport: React.FC = () => {
       const res = await exportSuite(currentRun.id)
       setSuiteFiles(res.files)
       setIsSuiteModalOpen(true)
+      toast('CI Suite Exported', 'Generated CI regression suite & GitHub Action', 'success')
     } catch (err: any) {
       console.error('Suite export failed:', err)
+      toast('Export Failed', err.message || 'Failed to export CI suite', 'error')
     }
   }
 
@@ -62,6 +66,7 @@ export const RegressionExport: React.FC = () => {
     navigator.clipboard.writeText(suiteFiles[activeSuiteTab].content)
     setSuiteCopied(true)
     setTimeout(() => setSuiteCopied(false), 2000)
+    toast('Copied', `Copied ${suiteFiles[activeSuiteTab]?.filename}`, 'info')
   }
 
   const handleDownloadSuite = () => {
@@ -74,14 +79,15 @@ export const RegressionExport: React.FC = () => {
     a.download = file.filename
     a.click()
     URL.revokeObjectURL(url)
+    toast('Downloaded', `Saved ${file.filename}`, 'info')
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Step 6: Regression Export</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-2xl font-bold tracking-tight text-text">Step 6: Regression Export</h1>
+          <p className="text-sm text-muted mt-1">
             Export deterministic regression tests and CI workflows to safeguard against regressions.
           </p>
         </div>
@@ -90,9 +96,9 @@ export const RegressionExport: React.FC = () => {
           {currentRun && (
             <button
               onClick={handleExportSuite}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text bg-elevated border border-border rounded-lg hover:bg-elevated/80 shadow-xs cursor-pointer transition-colors"
             >
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
               <span>Export CI Suite & Workflow</span>
             </button>
           )}
@@ -100,16 +106,16 @@ export const RegressionExport: React.FC = () => {
           <button
             onClick={handleCopy}
             disabled={!exportData}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-text bg-elevated border border-border rounded-lg hover:bg-elevated/80 shadow-xs cursor-pointer disabled:opacity-50 transition-colors"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copied ? 'Copied!' : 'Copy Code'}</span>
           </button>
 
           <button
             onClick={handleDownload}
             disabled={!exportData}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 shadow-xs cursor-pointer disabled:opacity-50 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Download</span>
@@ -118,13 +124,13 @@ export const RegressionExport: React.FC = () => {
       </div>
 
       {/* Format Selector Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200">
+      <div className="flex items-center gap-2 border-b border-border">
         <button
           onClick={() => setFormat('pytest')}
           className={`px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
             format === 'pytest'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted hover:text-text'
           }`}
         >
           pytest (Python)
@@ -133,8 +139,8 @@ export const RegressionExport: React.FC = () => {
           onClick={() => setFormat('json')}
           className={`px-4 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
             format === 'json'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted hover:text-text'
           }`}
         >
           Counterexample JSON
@@ -142,22 +148,22 @@ export const RegressionExport: React.FC = () => {
       </div>
 
       {/* Code Preview Card */}
-      <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-xl overflow-hidden">
-        <div className="px-4 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2 text-slate-400 font-mono">
-            <FileCode className="w-4 h-4 text-blue-400" />
+      <div className="bg-surface rounded-xl border border-border shadow-xl overflow-hidden">
+        <div className="px-4 py-2.5 bg-elevated border-b border-border flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-text font-mono">
+            <FileCode className="w-4 h-4 text-primary" />
             <span>{exportData?.filename || 'test_regression.py'}</span>
           </div>
-          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+          <span className="text-[10px] uppercase font-bold text-muted tracking-wider">
             {format}
           </span>
         </div>
 
-        <div className="p-4 overflow-x-auto">
+        <div className="p-4 bg-bg overflow-x-auto">
           {isLoading ? (
-            <div className="py-12 text-center text-slate-500 text-xs">Generating export...</div>
+            <div className="py-12 text-center text-muted text-xs">Generating export...</div>
           ) : (
-            <pre className="font-mono text-xs text-slate-200 leading-relaxed">
+            <pre className="font-mono text-xs text-text leading-relaxed">
               {exportData?.content || '# No counterexample selected for export'}
             </pre>
           )}
@@ -165,47 +171,47 @@ export const RegressionExport: React.FC = () => {
       </div>
 
       {/* Runnable in CI Instructions */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-          <Terminal className="w-4 h-4 text-blue-600" />
+      <div className="bg-surface p-5 rounded-xl border border-border shadow-xs space-y-3">
+        <div className="flex items-center gap-2 text-xs font-bold text-text">
+          <Terminal className="w-4 h-4 text-primary" />
           <span>Runnable in CI/CD</span>
         </div>
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-muted">
           Drop the exported file into your test directory. The test runs the minimal counterexample sequence
           against your entitlement adapter and fails if regressions occur.
         </p>
-        <div className="p-3 bg-slate-900 rounded-lg text-xs font-mono text-slate-300 flex items-center justify-between">
+        <div className="p-3 bg-bg rounded-lg text-xs font-mono text-text flex items-center justify-between border border-border">
           <code>pytest -v tests/{exportData?.filename || 'test_regression_*.py'}</code>
         </div>
       </div>
 
       {/* CI Suite Export Modal */}
       {isSuiteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-3xl w-full p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-surface rounded-xl shadow-2xl border border-border max-w-3xl w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base font-bold text-slate-900">One-Click CI Suite Export</h3>
+                <Sparkles className="w-5 h-5 text-primary" />
+                <h3 className="text-base font-bold text-text">One-Click CI Suite Export</h3>
               </div>
               <button
                 onClick={() => setIsSuiteModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100"
+                className="text-muted hover:text-text p-1 rounded-md hover:bg-elevated cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Suite Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-200">
+            <div className="flex items-center gap-2 border-b border-border">
               {suiteFiles.map((file: { filename: string; content: string }, idx: number) => (
                 <button
                   key={file.filename}
                   onClick={() => setActiveSuiteTab(idx)}
                   className={`px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
                     activeSuiteTab === idx
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted hover:text-text'
                   }`}
                 >
                   {file.filename}
@@ -214,27 +220,27 @@ export const RegressionExport: React.FC = () => {
             </div>
 
             {/* Suite Code Viewer */}
-            <div className="bg-slate-900 rounded-lg p-4 max-h-80 overflow-y-auto">
-              <pre className="font-mono text-xs text-slate-200 leading-relaxed">
+            <div className="bg-bg border border-border rounded-lg p-4 max-h-80 overflow-y-auto">
+              <pre className="font-mono text-xs text-text leading-relaxed">
                 {suiteFiles[activeSuiteTab]?.content}
               </pre>
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted">
                 Consolidates all discovered counterexamples and GitHub Actions configuration.
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopySuite}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-xs font-semibold text-text bg-elevated hover:bg-elevated/80 border border-border rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
-                  {suiteCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {suiteCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{suiteCopied ? 'Copied!' : 'Copy'}</span>
                 </button>
                 <button
                   onClick={handleDownloadSuite}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer flex items-center gap-1.5"
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download File</span>

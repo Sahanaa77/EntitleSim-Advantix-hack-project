@@ -165,3 +165,59 @@ def test_full_verification_flow_via_api(client):
     filenames = {f["filename"] for f in suite_data["files"]}
     assert "test_entitlesim_suite.py" in filenames
     assert ".github/workflows/entitlesim.yml" in filenames
+
+
+def test_simulate_endpoint_stateless(client):
+    """Verifies stateless POST /api/simulate returns per-event expected/observed tenant state and violations."""
+    models_res = client.get("/api/models")
+    assert models_res.status_code == 200
+    models = models_res.json()
+    sample = next(m for m in models if m["name"] == "saas-upgrade-demo")
+    model_def = sample["definition"]
+
+    # Step 1: Send single event with fixed=True -> clean pass (0 violations)
+    events_1 = [
+        {"id": "e1", "tenant": "A", "customer_id": "c1", "seq": 1, "type": "SubscriptionCreated", "payload": {"plan": "free"}}
+    ]
+    res1_fixed = client.post("/api/simulate", json={"model": model_def, "events": events_1, "fixed": True})
+    assert res1_fixed.status_code == 200
+    data1_fixed = res1_fixed.json()
+    assert len(data1_fixed) == 1
+    assert data1_fixed[0]["step"] == 1
+    assert data1_fixed[0]["event"]["id"] == "e1"
+    assert "expected" in data1_fixed[0]
+    assert "observed" in data1_fixed[0]
+    assert "A" in data1_fixed[0]["expected"]
+    assert "A" in data1_fixed[0]["observed"]
+    assert data1_fixed[0]["expected"]["A"]["plan"] == "free"
+    assert data1_fixed[0]["observed"]["A"]["plan"] == "free"
+    assert len(data1_fixed[0]["violations"]) == 0
+
+    # Step 2: Stateless replay with buggy SUT (fixed=False) -> reproduces invariant violations
+    res1_buggy = client.post("/api/simulate", json={"model": model_def, "events": events_1, "fixed": False})
+    assert res1_buggy.status_code == 200
+    data1_buggy = res1_buggy.json()
+    assert len(data1_buggy) == 1
+    assert any(v["id"] == "INV-3" for v in data1_buggy[0]["violations"])
+
+    # Step 3: Stateless replay with 4 out-of-order events producing INV-1 violation on buggy SUT
+    events_4 = [
+        {"id": "e1", "tenant": "A", "customer_id": "c1", "seq": 1, "type": "SubscriptionCreated", "payload": {"plan": "free"}},
+        {"id": "e3", "tenant": "A", "customer_id": "c1", "seq": 3, "type": "PlanDowngraded", "payload": {"plan": "free"}},
+        {"id": "e2", "tenant": "A", "customer_id": "c1", "seq": 2, "type": "PlanUpgraded", "payload": {"plan": "pro"}},
+        {"id": "e4", "tenant": "A", "customer_id": "c1", "seq": 4, "type": "AccessCheck", "payload": {"feature": "premium", "role": "admin"}},
+    ]
+    res4_buggy = client.post("/api/simulate", json={"model": model_def, "events": events_4, "fixed": False})
+    assert res4_buggy.status_code == 200
+    data4_buggy = res4_buggy.json()
+    assert len(data4_buggy) == 4
+    assert len(data4_buggy[3]["violations"]) > 0
+    assert any(v["id"] == "INV-1" for v in data4_buggy[3]["violations"])
+
+    # Step 4: Re-simulate 4 events with fixed=True (stateless) -> INV-1 out-of-order violation dropped
+    res4_fixed = client.post("/api/simulate", json={"model": model_def, "events": events_4, "fixed": True})
+    assert res4_fixed.status_code == 200
+    data4_fixed = res4_fixed.json()
+    assert len(data4_fixed) == 4
+    assert len(data4_fixed[3]["violations"]) == 0
+

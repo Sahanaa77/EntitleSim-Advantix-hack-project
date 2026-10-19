@@ -8,6 +8,7 @@ import {
   minimizeCounterexample as apiMinimize,
 } from '../lib/api'
 import { BoundsConfig, Counterexample, ModelRecord, Run } from '../types'
+import { ToastItem } from '../components/ToastContainer'
 
 const DEMO_BOUNDS: BoundsConfig = {
   max_depth: 6,
@@ -34,6 +35,9 @@ interface AppContextType {
   demoStep: number
   demoMessage: string
   isDemoPaused: boolean
+  toasts: ToastItem[]
+  toast: (title: string, message?: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+  dismissToast: (id: string) => void
   setCurrentModel: (model: ModelRecord | null) => void
   setIsFixed: (val: boolean) => void
   setIsHistoryOpen: (val: boolean) => void
@@ -65,6 +69,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false)
   const [runHistory, setRunHistory] = useState<Run[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  const toast = useCallback(
+    (title: string, message?: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+      const id = Math.random().toString(36).slice(2, 9)
+      const newItem: ToastItem = { id, title, message, type }
+      setToasts((prev) => [...prev.slice(-4), newItem])
+      window.setTimeout(() => {
+        dismissToast(id)
+      }, 4000)
+    },
+    [dismissToast]
+  )
 
   // Demo walkthrough state
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false)
@@ -118,6 +139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setError(null)
     setIsPolling(true)
+    toast('Verification Started', 'Running bounded model exploration across interleavings...', 'info')
 
     try {
       const initialRun = await createRun(currentModel.id, bounds, fixed)
@@ -142,8 +164,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (updated.counterexamples && updated.counterexamples.length > 0) {
                 const inv1 = updated.counterexamples.find((c) => c.invariant_id === 'INV-1')
                 setSelectedCx(inv1 || updated.counterexamples[0])
+                toast(
+                  'Violations Found',
+                  `${updated.counterexamples.length} counterexample(s) detected across ${updated.stats?.states_explored ?? 0} states.`,
+                  'warning'
+                )
               } else {
                 setSelectedCx(null)
+                toast(
+                  'Verification Passed',
+                  `No invariant violations found across ${updated.stats?.states_explored ?? 0} states.`,
+                  'success'
+                )
               }
               resolve(updated)
             }
@@ -155,6 +187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: any) {
       setIsPolling(false)
       setError(err.message || 'Failed to start exploration')
+      toast('Verification Failed', err.message || 'Failed to execute run', 'error')
       return null
     }
   }
@@ -178,9 +211,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ),
         })
       }
+      toast('Trace Minimized', 'Counterexample trace minimized to canonical sequence.', 'success')
     } catch (err: any) {
       console.error('Failed to minimize counterexample:', err)
       setError(err.message || 'Minimization failed')
+      toast('Minimization Failed', err.message || 'Could not minimize trace', 'error')
     }
   }
 
@@ -195,8 +230,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedCx(null)
       }
       setIsHistoryOpen(false)
+      toast('Run Loaded', `Loaded verification run ${run.id.slice(0, 8)}`, 'info')
     } catch (err: any) {
       setError(err.message || 'Failed to open run')
+      toast('Load Error', err.message || 'Failed to load run', 'error')
     }
   }
 
@@ -219,13 +256,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     switch (step) {
       case 1:
-        navigate('/')
+        navigate('/verification/model')
         setDemoMessage('Step 1 of 6: SaaS Subscription Model with 2 tenants, free/pro plans, and 5 invariants loaded.')
         scheduleNextDemoStep(2, 3000)
         break
 
       case 2:
-        navigate('/explore')
+        navigate('/verification/explore')
         setDemoMessage('Step 2 of 6: Exploring bounded event sequences (out-of-order webhooks & duplicates)...')
         try {
           const run = await startExploration(DEMO_BOUNDS, false)
@@ -244,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         break
 
       case 3:
-        navigate('/minimize')
+        navigate('/verification/minimize')
         setDemoMessage('Step 3 of 6: Minimizing trace via ddmin delta debugger...')
         await minimizeActiveCx()
         setDemoMessage('Step 3 of 6: Failing trace minimized from long trace down to canonical 4 steps.')
@@ -252,20 +289,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         break
 
       case 4:
-        navigate('/diff')
+        navigate('/verification/diff')
         setDemoMessage('Step 4 of 6: State-machine graph highlights offending transition in red (stale downgrade applied after upgrade).')
         scheduleNextDemoStep(5, 3500)
         break
 
       case 5:
-        navigate('/fix')
+        navigate('/verification/fix')
         setIsFixed(true)
         setDemoMessage('Step 5 of 6: Fix applied (fixed=true). Monotonic sequence check prevents stale downgrade; re-verification yields 0 violations.')
         scheduleNextDemoStep(6, 3500)
         break
 
       case 6:
-        navigate('/export')
+        navigate('/verification/export')
         setDemoMessage('Step 6 of 6: Pytest regression test & CI suite generated and ready to drop into CI/CD.')
         break
     }
@@ -322,6 +359,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         demoStep,
         demoMessage,
         isDemoPaused,
+        toasts,
+        toast,
+        dismissToast,
         setCurrentModel,
         setIsFixed,
         setIsHistoryOpen,

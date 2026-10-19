@@ -115,3 +115,28 @@ export async function exportSuite(runId: string): Promise<{
   if (!res.ok) throw new Error(`Suite export failed: ${res.statusText}`)
   return res.json()
 }
+
+export interface SimulateStepResult {
+  step: number
+  event: Record<string, any>
+  expected: Record<string, any>
+  observed: Record<string, any>
+  violations: Array<{ id: string; tenant: string; message: string }>
+}
+
+export async function simulateEvents(
+  model: ModelDefinition,
+  events: Array<Record<string, any>>,
+  fixed: boolean = false
+): Promise<SimulateStepResult[]> {
+  const res = await fetch(`${API_BASE}/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, events, fixed }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Simulation failed: ${res.statusText}`)
+  }
+  return res.json()
+}

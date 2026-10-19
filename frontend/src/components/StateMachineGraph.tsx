@@ -29,32 +29,32 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
     const isExp = normExpected === id
 
     if (isObserved && isOffending) {
-      return { fill: '#FEE2E2', stroke: '#EF4444', text: '#991B1B', strokeWidth: 3 }
+      return { fill: '#3B1219', stroke: '#EF4444', text: '#FCA5A5', strokeWidth: 3 }
     }
     if (isObserved) {
-      return { fill: '#DBEAFE', stroke: '#2563EB', text: '#1E40AF', strokeWidth: 3 }
+      return { fill: '#16284F', stroke: '#3B82F6', text: '#BFDBFE', strokeWidth: 3 }
     }
     if (isExp) {
-      return { fill: '#D1FAE5', stroke: '#10B981', text: '#065F46', strokeWidth: 2 }
+      return { fill: '#063D2E', stroke: '#22C55E', text: '#A7F3D0', strokeWidth: 2.5 }
     }
-    return { fill: '#F8FAFC', stroke: '#CBD5E1', text: '#64748B', strokeWidth: 1.5 }
+    return { fill: '#16223A', stroke: '#1F2D4A', text: '#8FA3C0', strokeWidth: 1.5 }
   }
 
   // Highlight offending transition if observed went to pro unexpectedly
   const isOffendingTransition = isOffending && normCurrent === 'pro' && normExpected === 'free'
 
   return (
-    <div className="w-full bg-slate-900 text-white rounded-xl p-4 shadow-xs border border-slate-800">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
-        <span className="font-semibold text-slate-300">Subscription State Machine</span>
+    <div className="w-full bg-surface text-text rounded-xl p-4 shadow-xs border border-border">
+      <div className="flex items-center justify-between pb-3 border-b border-border text-xs">
+        <span className="font-semibold text-text">Subscription State Machine</span>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-400/50" />
-            <span className="text-slate-400 text-[11px]">Observed: <strong className="text-slate-200 uppercase">{normCurrent}</strong></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-primary/40" />
+            <span className="text-muted text-[11px]">Observed: <strong className="text-text uppercase">{normCurrent}</strong></span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span className="text-slate-400 text-[11px]">Expected: <strong className="text-slate-200 uppercase">{normExpected}</strong></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-success ring-2 ring-success/40" />
+            <span className="text-muted text-[11px]">Expected: <strong className="text-text uppercase">{normExpected}</strong></span>
           </div>
         </div>
       </div>
@@ -71,7 +71,7 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748B" />
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#8FA3C0" />
             </marker>
             <marker
               id="arrow-red"
@@ -90,7 +90,7 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
           {/* none -> free */}
           <path
             d="M 85 90 L 170 90"
-            stroke="#64748B"
+            stroke="#8FA3C0"
             strokeWidth="1.5"
             markerEnd="url(#arrow)"
             fill="none"
@@ -99,7 +99,7 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
           {/* free -> pro (highlight red if offending transition) */}
           <path
             d="M 230 80 Q 280 60 330 80"
-            stroke={isOffendingTransition ? '#EF4444' : '#64748B'}
+            stroke={isOffendingTransition ? '#EF4444' : '#8FA3C0'}
             strokeWidth={isOffendingTransition ? 3 : 1.5}
             strokeDasharray={isOffendingTransition ? '4 2' : 'none'}
             markerEnd={isOffendingTransition ? 'url(#arrow-red)' : 'url(#arrow)'}
@@ -109,7 +109,7 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
           {/* pro -> free */}
           <path
             d="M 330 100 Q 280 120 230 100"
-            stroke="#64748B"
+            stroke="#8FA3C0"
             strokeWidth="1.5"
             markerEnd="url(#arrow)"
             fill="none"
@@ -118,7 +118,7 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
           {/* free -> cancelled */}
           <path
             d="M 215 115 L 265 170"
-            stroke="#64748B"
+            stroke="#8FA3C0"
             strokeWidth="1.5"
             markerEnd="url(#arrow)"
             fill="none"
@@ -127,7 +127,7 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
           {/* pro -> cancelled */}
           <path
             d="M 345 115 L 295 170"
-            stroke="#64748B"
+            stroke="#8FA3C0"
             strokeWidth="1.5"
             markerEnd="url(#arrow)"
             fill="none"
@@ -160,9 +160,9 @@ export const StateMachineGraph: React.FC<StateMachineGraphProps> = ({
       </div>
 
       {isOffending && (
-        <div className="mt-2 p-2 rounded-lg bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center justify-between">
+        <div className="mt-2 p-2 rounded-lg bg-danger/15 border border-danger/40 text-danger text-xs flex items-center justify-between">
           <span className="font-semibold">Offending Transition Detected:</span>
-          <span className="text-[11px] text-rose-200 font-mono">
+          <span className="text-[11px] text-text font-mono">
             {offendingReason || 'Unexpected transition occurred without proper version verification'}
           </span>
         </div>
