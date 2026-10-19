@@ -34,6 +34,8 @@ export interface ModelDefinition {
     payload: Record<string, any>
   }>
   invariants: Invariant[]
+  unit?: string
+  display?: { unit?: string }
 }
 
 export interface ModelRecord {

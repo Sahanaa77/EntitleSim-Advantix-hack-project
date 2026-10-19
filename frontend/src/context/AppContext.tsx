@@ -5,10 +5,44 @@ import {
   getRuns,
   getRun,
   createRun,
+  createModel,
   minimizeCounterexample as apiMinimize,
 } from '../lib/api'
-import { BoundsConfig, Counterexample, ModelRecord, Run } from '../types'
+import { BoundsConfig, Counterexample, ModelDefinition, ModelRecord, Run } from '../types'
 import { ToastItem } from '../components/ToastContainer'
+
+export const DUPLICATE_USAGE_MODEL_DEF: ModelDefinition = {
+  name: 'Duplicate Usage Event',
+  unit: 'GB',
+  display: { unit: 'GB' },
+  tenants: [{ id: 'A', roles: ['admin', 'member'] }],
+  feature_roles: {
+    premium: ['admin', 'member'],
+  },
+  plans: {
+    pro: { features: ['basic', 'premium'], quota: { api_calls: 100, GB: 100 } },
+  },
+  transitions: [
+    ['none', 'pro'],
+  ],
+  policies: {
+    grace_period_events: 1,
+    trial_events: 0,
+    prepaid_credits: 0,
+  },
+  scenario: [
+    { id: 'e1', tenant: 'A', customer_id: 'c1', seq: 1, type: 'SubscriptionCreated', payload: { plan: 'pro' } },
+    { id: 'u1', tenant: 'A', customer_id: 'c1', seq: 2, type: 'UsageRecorded', payload: { units: 15 } },
+    { id: 'e3', tenant: 'A', customer_id: 'c1', seq: 3, type: 'AccessCheck', payload: { feature: 'premium', role: 'admin' } },
+  ],
+  invariants: [
+    { id: 'INV-1', type: 'feature_access_matches_plan' },
+    { id: 'INV-2', type: 'usage_within_quota' },
+    { id: 'INV-3', type: 'tenant_isolation' },
+    { id: 'INV-4', type: 'no_access_after_cancel' },
+    { id: 'INV-5', type: 'cache_db_consistent' },
+  ],
+}
 
 const DEMO_BOUNDS: BoundsConfig = {
   max_depth: 6,
@@ -105,7 +139,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await getModels()
       setModels(data)
       if (data.length > 0 && !currentModel) {
-        setCurrentModel(data[0])
+        const defaultModel = data.find((m) => m.name === 'Duplicate Usage Event') || data[0]
+        setCurrentModel(defaultModel)
       }
     } catch (err: any) {
       console.error('Failed to fetch models:', err)
@@ -160,10 +195,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setIsPolling(false)
               fetchHistory()
 
-              // Auto-select first counterexample (prefer INV-1)
+              // Auto-select first counterexample (prefer INV-2 for duplicate usage, then INV-1)
               if (updated.counterexamples && updated.counterexamples.length > 0) {
-                const inv1 = updated.counterexamples.find((c) => c.invariant_id === 'INV-1')
-                setSelectedCx(inv1 || updated.counterexamples[0])
+                const targetCx =
+                  (currentModel?.name === 'Duplicate Usage Event'
+                    ? updated.counterexamples.find((c) => c.invariant_id === 'INV-2')
+                    : null) ||
+                  updated.counterexamples.find((c) => c.invariant_id === 'INV-2') ||
+                  updated.counterexamples.find((c) => c.invariant_id === 'INV-1') ||
+                  updated.counterexamples[0]
+                setSelectedCx(targetCx)
                 toast(
                   'Violations Found',
                   `${updated.counterexamples.length} counterexample(s) detected across ${updated.stats?.states_explored ?? 0} states.`,
@@ -224,8 +265,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const run = await getRun(runId)
       setCurrentRun(run)
       if (run.counterexamples && run.counterexamples.length > 0) {
-        const inv1 = run.counterexamples.find((c) => c.invariant_id === 'INV-1')
-        setSelectedCx(inv1 || run.counterexamples[0])
+        const targetCx =
+          run.counterexamples.find((c) => c.invariant_id === 'INV-2') ||
+          run.counterexamples.find((c) => c.invariant_id === 'INV-1') ||
+          run.counterexamples[0]
+        setSelectedCx(targetCx)
       } else {
         setSelectedCx(null)
       }
@@ -257,20 +301,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     switch (step) {
       case 1:
         navigate('/verification/model')
-        setDemoMessage('Step 1 of 6: SaaS Subscription Model with 2 tenants, free/pro plans, and 5 invariants loaded.')
+        setDemoMessage('Step 1 of 6: Loaded "Duplicate Usage Event" scenario (Tenant A, Pro plan 100 GB quota, events u1: 15 GB).')
         scheduleNextDemoStep(2, 3000)
         break
 
       case 2:
         navigate('/verification/explore')
-        setDemoMessage('Step 2 of 6: Exploring bounded event sequences (out-of-order webhooks & duplicates)...')
+        setDemoMessage('Step 2 of 6: Exploring bounded event sequences with duplicate delivery allowed...')
         try {
           const run = await startExploration(DEMO_BOUNDS, false)
           if (run && run.counterexamples && run.counterexamples.length > 0) {
             const states = run.stats?.states_explored ?? 0
             const ms = run.stats?.duration_ms ?? 0
             const viols = run.stats?.violations ?? run.counterexamples.length
-            setDemoMessage(`Step 2 of 6: Explored ${states} states in ${ms}ms. Found ${viols} violation (INV-1: Unauthorized Premium Access).`)
+            setDemoMessage(`Step 2 of 6: Explored ${states} states in ${ms}ms. Found ${viols} violation (INV-2: Usage counter mismatch - expected 15 GB vs observed 30 GB).`)
           } else {
             setDemoMessage('Step 2 of 6: Exploration finished.')
           }
@@ -284,20 +328,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         navigate('/verification/minimize')
         setDemoMessage('Step 3 of 6: Minimizing trace via ddmin delta debugger...')
         await minimizeActiveCx()
-        setDemoMessage('Step 3 of 6: Failing trace minimized from long trace down to canonical 4 steps.')
+        setDemoMessage('Step 3 of 6: Failing trace minimized down to 2 essential steps (duplicate UsageRecorded u1).')
         scheduleNextDemoStep(4, 3000)
         break
 
       case 4:
         navigate('/verification/diff')
-        setDemoMessage('Step 4 of 6: State-machine graph highlights offending transition in red (stale downgrade applied after upgrade).')
+        setDemoMessage('Step 4 of 6: State diff inspector verifies INV-2 counter mismatch: Expected 15 GB vs Observed 30 GB.')
         scheduleNextDemoStep(5, 3500)
         break
 
       case 5:
         navigate('/verification/fix')
         setIsFixed(true)
-        setDemoMessage('Step 5 of 6: Fix applied (fixed=true). Monotonic sequence check prevents stale downgrade; re-verification yields 0 violations.')
+        setDemoMessage('Step 5 of 6: Fix applied (Idempotency deduplication by event id). Re-verification yields 0 violations.')
         scheduleNextDemoStep(6, 3500)
         break
 
@@ -311,6 +355,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const startDemo = async () => {
     setIsDemoActive(true)
     setIsDemoPaused(false)
+    setIsFixed(false)
+    try {
+      let target = models.find((m) => m.name === 'Duplicate Usage Event')
+      if (!target) {
+        target = await createModel('Duplicate Usage Event', DUPLICATE_USAGE_MODEL_DEF)
+        const updated = await getModels()
+        setModels(updated)
+      }
+      setCurrentModel(target)
+    } catch (e) {
+      console.error('Failed to set guided tour model:', e)
+    }
     executeDemoStep(1)
   }
 

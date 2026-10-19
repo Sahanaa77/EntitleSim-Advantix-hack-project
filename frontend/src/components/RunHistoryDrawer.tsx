@@ -1,11 +1,30 @@
-import React from 'react'
-import { X, History, RefreshCw } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, History, RefreshCw, RotateCcw, AlertTriangle } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { resetDemoData } from '../lib/api'
 
 export const RunHistoryDrawer: React.FC = () => {
-  const { isHistoryOpen, setIsHistoryOpen, runHistory, currentRun, openRun, fetchHistory } = useApp()
+  const { isHistoryOpen, setIsHistoryOpen, runHistory, currentRun, openRun, fetchHistory, fetchModels, toast } = useApp()
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
 
   if (!isHistoryOpen) return null
+
+  const handleConfirmReset = async () => {
+    setIsResetting(true)
+    try {
+      await resetDemoData()
+      await fetchHistory()
+      await fetchModels()
+      window.dispatchEvent(new CustomEvent('refresh-dashboard'))
+      toast('Demo Data Reset', 'Runs and counterexamples cleared, sample models re-seeded', 'success')
+      setShowConfirm(false)
+    } catch (err: any) {
+      toast('Reset Failed', err.message || 'Failed to reset demo data', 'error')
+    } finally {
+      setIsResetting(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -32,6 +51,15 @@ export const RunHistoryDrawer: React.FC = () => {
                 title="Refresh history"
               >
                 <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                disabled={isResetting}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-danger bg-danger/10 hover:bg-danger/20 border border-danger/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                title="Reset demo data"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+                <span>Reset Demo</span>
               </button>
               <button
                 onClick={() => setIsHistoryOpen(false)}
@@ -130,8 +158,66 @@ export const RunHistoryDrawer: React.FC = () => {
               })
             )}
           </div>
+
+          {/* Footer Action */}
+          <div className="p-3.5 border-t border-border bg-elevated/70 flex items-center justify-between gap-3">
+            <div className="text-[11px] text-muted">
+              Clear runs and re-seed sample models
+            </div>
+            <button
+              onClick={() => setShowConfirm(true)}
+              disabled={isResetting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-danger bg-danger/10 hover:bg-danger/20 border border-danger/30 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+              <span>Reset Demo Data</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full space-y-4 shadow-2xl animate-in fade-in-0 zoom-in-95">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-danger/15 text-danger flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-text">Reset Demo Data?</h3>
+                <p className="text-xs text-muted leading-relaxed">
+                  This will clear all runs, counterexamples, and regression tests, and re-seed sample models. Saved models will be kept.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                onClick={() => setShowConfirm(false)}
+                disabled={isResetting}
+                className="px-3 py-1.5 text-xs font-medium text-text bg-elevated hover:bg-elevated/80 border border-border rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmReset}
+                disabled={isResetting}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-danger hover:bg-danger/90 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isResetting ? (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Resetting...</span>
+                  </>
+                ) : (
+                  <span>Confirm Reset</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

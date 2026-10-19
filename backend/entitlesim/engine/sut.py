@@ -206,6 +206,12 @@ class EntitlementService:
         sub["grace_remaining"] = grace_rem
 
         # Bug B3: If interrupted between Write 1 and Write 2, skip cache invalidation!
+        lifecycle_events = (
+            EVENT_SUBSCRIPTION_CREATED,
+            EVENT_PLAN_UPGRADED,
+            EVENT_PLAN_DOWNGRADED,
+            EVENT_SUBSCRIPTION_CANCELLED,
+        )
         if not self.fixed and interrupt and ev_type in lifecycle_events:
             # Crash occurs: cache is NOT updated!
             return True

@@ -232,3 +232,34 @@ def test_engine_protocol_interface(saas_upgrade_model):
         fixed=True,
     )
     assert replay_res.passed is True
+
+
+def test_duplicate_usage_event_scenario():
+    """Verify Duplicate Usage Event scenario reports INV-2 expected 15 vs observed 30, and minimal trace <= 3 steps."""
+    sample_path = Path(__file__).parent.parent / "entitlesim" / "samples" / "duplicate_usage_event.json"
+    with open(sample_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    model = parse_model(data)
+
+    explorer = BoundedExplorer(model)
+    bounds = {
+        "max_depth": 6,
+        "max_retries": 2,
+        "max_concurrency": 2,
+        "allow_duplicates": True,
+        "allow_reorder": True,
+        "allow_interrupt": False,
+        "max_states": 500,
+        "seed": 42,
+    }
+    result = explorer.explore(bounds=bounds, fixed=False)
+
+    inv2 = next((v for v in result.violations if v.id == "INV-2"), None)
+    assert inv2 is not None, "INV-2 violation must be detected with duplicates allowed"
+    assert inv2.expected == {"usage": 15}
+    assert inv2.observed == {"usage": 30}
+
+    minimizer = TraceMinimizer(model)
+    min_res = minimizer.minimize(inv2.trace, "INV-2", fixed=False)
+    assert min_res.minimal_len <= 3, f"Minimal trace length {min_res.minimal_len} must be 3 steps or fewer"
+

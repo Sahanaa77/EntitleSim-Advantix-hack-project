@@ -221,3 +221,52 @@ def test_simulate_endpoint_stateless(client):
     assert len(data4_fixed) == 4
     assert len(data4_fixed[3]["violations"]) == 0
 
+
+def test_handler_source_endpoint(client):
+    res = client.get("/api/handlers/source?bug=B2")
+    assert res.status_code == 200
+    data = res.json()
+    assert "seen_ids" in data["source"]
+    assert "if self.fixed:" in data["source"]
+    assert len(data["lines"]) >= 8
+    assert len(data["lines"]) <= 15
+
+
+def test_admin_reset_endpoint(client):
+    # 1. Ensure custom model survives reset
+    custom_model_payload = {
+        "name": "my-custom-test-model",
+        "definition": {
+            "name": "my-custom-test-model",
+            "tenants": [{"id": "C"}],
+            "plans": {"free": {"features": ["basic"]}},
+            "invariants": [{"id": "INV-1", "type": "feature_access_matches_plan"}],
+            "scenario": [],
+        },
+    }
+    model_res = client.post("/api/models", json=custom_model_payload)
+    assert model_res.status_code == 200
+    custom_model_id = model_res.json()["id"]
+
+    # 2. Trigger reset
+    reset_res = client.post("/api/admin/reset")
+    assert reset_res.status_code == 200
+    assert reset_res.json()["status"] == "ok"
+
+    # 3. Runs must be empty
+    runs_res = client.get("/api/runs")
+    assert runs_res.status_code == 200
+    assert len(runs_res.json()) == 0
+
+    # 4. Custom model still exists
+    models_res = client.get("/api/models")
+    assert models_res.status_code == 200
+    model_ids = [m["id"] for m in models_res.json()]
+    assert custom_model_id in model_ids
+
+    # 5. Sample models re-seeded
+    model_names = [m["name"] for m in models_res.json()]
+    assert "saas-upgrade-demo" in model_names
+    assert "Duplicate Usage Event" in model_names
+
+

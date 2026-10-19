@@ -75,6 +75,44 @@ export const VALID_EVENT_TYPES = [
 
 export type ValidEventType = (typeof VALID_EVENT_TYPES)[number]
 
+/**
+ * Deduplicates an array of string tags case-insensitively, trimming whitespace
+ * and filtering empty/falsy values.
+ */
+export const dedupeCaseInsensitive = (items: (string | undefined | null)[]): string[] => {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const item of items) {
+    if (!item || typeof item !== 'string') continue
+    const trimmed = item.trim()
+    if (!trimmed) continue
+    const lower = trimmed.toLowerCase()
+    if (!seen.has(lower)) {
+      seen.add(lower)
+      result.push(lower)
+    }
+  }
+  return result
+}
+
+/**
+ * Shared keydown handler for tag inputs:
+ * Handles Enter and comma once, prevents default & stops propagation,
+ * ignores repeat events and IME composition.
+ */
+export const handleTagInputKeyDown = (
+  e: React.KeyboardEvent<HTMLInputElement>,
+  onAdd: () => void
+) => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.repeat) return
+    if (e.nativeEvent?.isComposing || (e as any).isComposing) return
+    onAdd()
+  }
+}
+
 const EVENT_TYPE_CONFIG: Record<
   ValidEventType,
   { label: string; badge: string; defaultPayload: (plans: string[], features: string[]) => Record<string, any> }
@@ -123,6 +161,8 @@ const EVENT_TYPE_CONFIG: Record<
 
 const DEFAULT_SAMPLE_MODEL: ModelDefinition = {
   name: 'saas-upgrade-demo',
+  unit: 'GB',
+  display: { unit: 'GB' },
   tenants: [
     { id: 'A', roles: ['admin', 'member'] },
     { id: 'B', roles: ['admin', 'member'] },
@@ -234,6 +274,7 @@ export const ModelDefine: React.FC = () => {
   const [featureRoles, setFeatureRoles] = useState<Record<string, string[]>>({
     premium: ['admin', 'member'],
   })
+  const [displayUnit, setDisplayUnit] = useState<string>('GB')
   const [validationResult, setValidationResult] = useState<{
     valid: boolean
     errors?: string[]
@@ -243,16 +284,21 @@ export const ModelDefine: React.FC = () => {
   // Load a model definition into builder state
   const loadDefinitionIntoState = useCallback((def: ModelDefinition, name?: string) => {
     setModelName(name || def.name || 'custom-model')
+    setDisplayUnit(def.unit || def.display?.unit || 'GB')
 
     if (def.feature_roles && typeof def.feature_roles === 'object') {
-      setFeatureRoles(def.feature_roles)
+      const cleanFR: Record<string, string[]> = {}
+      Object.entries(def.feature_roles).forEach(([feat, rList]) => {
+        cleanFR[feat.trim().toLowerCase()] = dedupeCaseInsensitive(rList)
+      })
+      setFeatureRoles(cleanFR)
     }
 
     if (def.tenants && Array.isArray(def.tenants)) {
       setTenants(
         def.tenants.map((t) => ({
           id: t.id || 'A',
-          roles: t.roles ? [...t.roles] : ['member'],
+          roles: dedupeCaseInsensitive(t.roles || ['member']),
           newRole: '',
         }))
       )
@@ -261,8 +307,8 @@ export const ModelDefine: React.FC = () => {
     if (def.plans && typeof def.plans === 'object') {
       const pItems: PlanItem[] = Object.entries(def.plans).map(([pName, pVal]) => ({
         name: pName,
-        features: pVal.features ? [...pVal.features] : [],
-        quota: pVal.quota?.api_calls ?? 100,
+        features: dedupeCaseInsensitive(pVal.features || []),
+        quota: pVal.quota?.GB ?? pVal.quota?.api_calls ?? 100,
         newFeature: '',
       }))
       setPlans(pItems)
@@ -336,8 +382,8 @@ export const ModelDefine: React.FC = () => {
     plans.forEach((p) => {
       const pName = p.name.trim() || 'unnamed'
       plansObj[pName] = {
-        features: p.features,
-        quota: { api_calls: Number(p.quota) || 0 },
+        features: dedupeCaseInsensitive(p.features),
+        quota: { api_calls: Number(p.quota) || 0, [displayUnit]: Number(p.quota) || 0 },
       }
     })
 
@@ -353,13 +399,22 @@ export const ModelDefine: React.FC = () => {
       })
     )
 
+    const cleanFeatureRoles: Record<string, string[]> = {}
+    if (featureRoles && typeof featureRoles === 'object') {
+      Object.entries(featureRoles).forEach(([feat, rList]) => {
+        cleanFeatureRoles[feat.trim().toLowerCase()] = dedupeCaseInsensitive(rList)
+      })
+    }
+
     return {
       name: modelName.trim() || 'custom-model',
+      unit: displayUnit,
+      display: { unit: displayUnit },
       tenants: tenants.map((t) => ({
         id: t.id.trim() || 'T',
-        roles: t.roles,
+        roles: dedupeCaseInsensitive(t.roles),
       })),
-      feature_roles: featureRoles,
+      feature_roles: cleanFeatureRoles,
       plans: plansObj,
       transitions: transitionsArr,
       policies: {
@@ -377,7 +432,7 @@ export const ModelDefine: React.FC = () => {
       })),
       invariants: invariantsArr,
     }
-  }, [modelName, tenants, plans, transitionPairs, policies, selectedInvariants, scenario, featureRoles])
+  }, [modelName, tenants, plans, transitionPairs, policies, selectedInvariants, scenario, featureRoles, displayUnit])
 
   // Live debounced validation
   useEffect(() => {
@@ -421,22 +476,32 @@ export const ModelDefine: React.FC = () => {
   }
 
   const handleAddRoleTag = (index: number) => {
-    const roleToAdd = tenants[index].newRole.trim().toLowerCase()
-    if (!roleToAdd || tenants[index].roles.includes(roleToAdd)) return
+    const rawVal = tenants[index]?.newRole ?? ''
+    const val = rawVal.trim().toLowerCase()
+    if (!val) return
     setTenants((prev) => {
-      const updated = [...prev]
-      updated[index].roles = [...updated[index].roles, roleToAdd]
-      updated[index].newRole = ''
-      return updated
+      const target = prev[index]
+      if (!target) return prev
+      const currentRoles = target.roles || []
+      const alreadyHas = currentRoles.some((r) => r.trim().toLowerCase() === val)
+      return prev.map((t, i) =>
+        i === index
+          ? {
+              ...t,
+              roles: alreadyHas ? dedupeCaseInsensitive(t.roles) : dedupeCaseInsensitive([...t.roles, val]),
+              newRole: '',
+            }
+          : t
+      )
     })
   }
 
   const handleRemoveRoleTag = (tenantIdx: number, roleIdx: number) => {
-    setTenants((prev) => {
-      const updated = [...prev]
-      updated[tenantIdx].roles = updated[tenantIdx].roles.filter((_, i) => i !== roleIdx)
-      return updated
-    })
+    setTenants((prev) =>
+      prev.map((t, i) =>
+        i === tenantIdx ? { ...t, roles: t.roles.filter((_, idx) => idx !== roleIdx) } : t
+      )
+    )
   }
 
   // Plan handlers
@@ -503,22 +568,32 @@ export const ModelDefine: React.FC = () => {
   }
 
   const handleAddFeatureTag = (index: number) => {
-    const feat = plans[index].newFeature.trim().toLowerCase()
-    if (!feat || plans[index].features.includes(feat)) return
+    const rawVal = plans[index]?.newFeature ?? ''
+    const val = rawVal.trim().toLowerCase()
+    if (!val) return
     setPlans((prev) => {
-      const updated = [...prev]
-      updated[index].features = [...updated[index].features, feat]
-      updated[index].newFeature = ''
-      return updated
+      const target = prev[index]
+      if (!target) return prev
+      const currentFeatures = target.features || []
+      const alreadyHas = currentFeatures.some((f) => f.trim().toLowerCase() === val)
+      return prev.map((p, i) =>
+        i === index
+          ? {
+              ...p,
+              features: alreadyHas ? dedupeCaseInsensitive(p.features) : dedupeCaseInsensitive([...p.features, val]),
+              newFeature: '',
+            }
+          : p
+      )
     })
   }
 
   const handleRemoveFeatureTag = (planIdx: number, featIdx: number) => {
-    setPlans((prev) => {
-      const updated = [...prev]
-      updated[planIdx].features = updated[planIdx].features.filter((_, i) => i !== featIdx)
-      return updated
-    })
+    setPlans((prev) =>
+      prev.map((p, i) =>
+        i === planIdx ? { ...p, features: p.features.filter((_, idx) => idx !== featIdx) } : p
+      )
+    )
   }
 
   // Transitions Grid
@@ -667,6 +742,18 @@ export const ModelDefine: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      setTenants((prev) =>
+        prev.map((t) => ({
+          ...t,
+          roles: dedupeCaseInsensitive(t.roles),
+        }))
+      )
+      setPlans((prev) =>
+        prev.map((p) => ({
+          ...p,
+          features: dedupeCaseInsensitive(p.features),
+        }))
+      )
       const name = modelName.trim() || 'custom-model'
       const newRec = await createModel(name, builtDefinition)
       await fetchModels()
@@ -849,18 +936,11 @@ export const ModelDefine: React.FC = () => {
                         value={tenant.newRole}
                         onChange={(e) => {
                           const val = e.target.value
-                          setTenants((prev) => {
-                            const updated = [...prev]
-                            updated[idx].newRole = val
-                            return updated
-                          })
+                          setTenants((prev) =>
+                            prev.map((t, i) => (i === idx ? { ...t, newRole: val } : t))
+                          )
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ',') {
-                            e.preventDefault()
-                            handleAddRoleTag(idx)
-                          }
-                        }}
+                        onKeyDown={(e) => handleTagInputKeyDown(e, () => handleAddRoleTag(idx))}
                         className="w-28 px-2 py-1 text-[11px] bg-surface border border-border rounded text-text placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
@@ -914,7 +994,7 @@ export const ModelDefine: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-muted">API Quota:</span>
+                      <span className="text-xs font-semibold text-muted">Quota ({displayUnit}):</span>
                       <input
                         type="number"
                         min="0"
@@ -961,18 +1041,11 @@ export const ModelDefine: React.FC = () => {
                         value={plan.newFeature}
                         onChange={(e) => {
                           const val = e.target.value
-                          setPlans((prev) => {
-                            const updated = [...prev]
-                            updated[idx].newFeature = val
-                            return updated
-                          })
+                          setPlans((prev) =>
+                            prev.map((p, i) => (i === idx ? { ...p, newFeature: val } : p))
+                          )
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ',') {
-                            e.preventDefault()
-                            handleAddFeatureTag(idx)
-                          }
-                        }}
+                        onKeyDown={(e) => handleTagInputKeyDown(e, () => handleAddFeatureTag(idx))}
                         className="w-32 px-2 py-1 text-[11px] bg-surface border border-border rounded text-text placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>

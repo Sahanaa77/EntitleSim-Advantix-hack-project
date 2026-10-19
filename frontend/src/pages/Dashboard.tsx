@@ -66,14 +66,22 @@ export const Dashboard: React.FC = () => {
     }
   }, [fetchHistory, fetchModels])
 
-  // Initial load + Auto-refresh every 5 seconds
+  // Initial load + Auto-refresh every 5 seconds + External refresh events
   useEffect(() => {
     loadData(true)
     const interval = setInterval(() => {
       loadData(false)
     }, 5000)
 
-    return () => clearInterval(interval)
+    const handleRefresh = () => {
+      loadData(false)
+    }
+    window.addEventListener('refresh-dashboard', handleRefresh)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('refresh-dashboard', handleRefresh)
+    }
   }, [loadData])
 
   // Computed KPIs

@@ -140,3 +140,30 @@ export async function simulateEvents(
   }
   return res.json()
 }
+
+export async function getHandlerSource(bug: string = 'B2'): Promise<{
+  bug: string
+  file: string
+  start_line: number
+  end_line: number
+  source: string
+  code: string
+  lines: string[]
+  guard_lines?: number[]
+}> {
+  const res = await fetch(`${API_BASE}/handlers/source?bug=${encodeURIComponent(bug)}`)
+  if (!res.ok) throw new Error(`Failed to fetch handler source: ${res.statusText}`)
+  return res.json()
+}
+
+export async function resetDemoData(): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/admin/reset`, {
+    method: 'POST',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Reset demo data failed: ${res.statusText}`)
+  }
+  return res.json()
+}
+

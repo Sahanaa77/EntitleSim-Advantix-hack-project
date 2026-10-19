@@ -19,7 +19,8 @@ import { formatEventSummary, getInvariantInfo } from '../lib/formatters'
 
 export const InspectStateDiff: React.FC = () => {
   const navigate = useNavigate()
-  const { selectedCx, currentRun } = useApp()
+  const { selectedCx, currentRun, currentModel } = useApp()
+  const displayUnit = currentModel?.definition?.unit || currentModel?.definition?.display?.unit || 'GB'
 
   const activeCx = selectedCx || currentRun?.counterexamples?.[0]
   const diffs = activeCx?.state_diffs || []
@@ -197,6 +198,12 @@ export const InspectStateDiff: React.FC = () => {
               <span className="text-[11px] font-mono text-muted">({invInfo.id})</span>
             </div>
             <p className="text-xs text-muted leading-relaxed">{invInfo.explanation}</p>
+            {invInfo.businessImpact && (
+              <p className="text-[11px] text-danger font-medium pt-1">
+                <span className="font-semibold text-text">Business Impact: </span>
+                {invInfo.businessImpact}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -330,10 +337,10 @@ export const InspectStateDiff: React.FC = () => {
 
               {/* Metered Usage */}
               <tr className={isUsageMismatched ? 'bg-danger/10' : 'hover:bg-elevated/30'}>
-                <td className="py-3 px-4 font-bold text-text">Metered Usage Units</td>
-                <td className="py-3 px-4 text-text">{currentDiff.expected?.usage ?? 0} units</td>
+                <td className="py-3 px-4 font-bold text-text">Metered Usage ({displayUnit})</td>
+                <td className="py-3 px-4 text-text">{currentDiff.expected?.usage ?? 0} {displayUnit}</td>
                 <td className={`py-3 px-4 ${isUsageMismatched ? 'text-danger font-bold' : 'text-text'}`}>
-                  {currentDiff.observed?.usage ?? 0} units
+                  {currentDiff.observed?.usage ?? 0} {displayUnit}
                 </td>
                 <td className="py-3 px-4 text-center">
                   <span

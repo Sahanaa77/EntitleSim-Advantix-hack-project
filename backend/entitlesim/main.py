@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from entitlesim.db import init_db
-from entitlesim.routers import counterexamples, models, runs, simulate
+from entitlesim.routers import admin, counterexamples, handlers, models, runs, simulate
 from entitlesim.samples.seed import seed_sample_model
 from entitlesim.schemas import HealthResponse
 
@@ -46,6 +46,10 @@ app.include_router(runs.router, prefix="/api")
 app.include_router(counterexamples.router, prefix="/api")
 app.include_router(simulate.router, prefix="/api")
 app.include_router(simulate.router)
+app.include_router(handlers.router, prefix="/api")
+app.include_router(handlers.router)
+app.include_router(admin.router, prefix="/api")
+app.include_router(admin.router)
 
 
 if __name__ == "__main__":

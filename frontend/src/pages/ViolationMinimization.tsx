@@ -118,6 +118,12 @@ export const ViolationMinimization: React.FC = () => {
                 <span className="text-[11px] font-mono text-muted">Rule: {invInfo.id}</span>
               </div>
               <p className="text-xs text-muted leading-relaxed">{invInfo.explanation}</p>
+              {invInfo.businessImpact && (
+                <p className="text-[11px] text-danger font-medium pt-1">
+                  <span className="font-semibold text-text">Business Impact: </span>
+                  {invInfo.businessImpact}
+                </p>
+              )}
             </div>
           </div>
 

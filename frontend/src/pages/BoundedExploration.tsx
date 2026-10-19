@@ -386,6 +386,12 @@ export const BoundedExploration: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-xs text-muted leading-relaxed">{invInfo.explanation}</p>
+                    {invInfo.businessImpact && (
+                      <p className="text-[11px] text-danger font-medium">
+                        <span className="font-semibold text-text">Business Impact: </span>
+                        {invInfo.businessImpact}
+                      </p>
+                    )}
                     <div className="text-[11px] text-muted font-mono">
                       Failing sequence length: {cx.original_trace.length} events &middot; Candidate for minimization
                     </div>

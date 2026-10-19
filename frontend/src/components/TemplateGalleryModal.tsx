@@ -13,6 +13,47 @@ export interface ModelTemplate {
 
 export const STARTER_TEMPLATES: ModelTemplate[] = [
   {
+    id: 'duplicate-usage-event',
+    name: 'Duplicate Usage Event',
+    title: 'Duplicate Usage Event',
+    description: 'Idempotency and double-counting verification when metered usage webhook events are retried or duplicated.',
+    badge: 'Guided Tour Default',
+    definition: {
+      name: 'Duplicate Usage Event',
+      unit: 'GB',
+      display: { unit: 'GB' },
+      tenants: [
+        { id: 'A', roles: ['admin', 'member'] },
+      ],
+      feature_roles: {
+        premium: ['admin', 'member'],
+      },
+      plans: {
+        pro: { features: ['basic', 'premium'], quota: { api_calls: 100, GB: 100 } },
+      },
+      transitions: [
+        ['none', 'pro'],
+      ],
+      policies: {
+        grace_period_events: 1,
+        trial_events: 0,
+        prepaid_credits: 0,
+      },
+      scenario: [
+        { id: 'e1', tenant: 'A', customer_id: 'c1', seq: 1, type: 'SubscriptionCreated', payload: { plan: 'pro' } },
+        { id: 'u1', tenant: 'A', customer_id: 'c1', seq: 2, type: 'UsageRecorded', payload: { units: 15 } },
+        { id: 'e3', tenant: 'A', customer_id: 'c1', seq: 3, type: 'AccessCheck', payload: { feature: 'premium', role: 'admin' } },
+      ],
+      invariants: [
+        { id: 'INV-1', type: 'feature_access_matches_plan' },
+        { id: 'INV-2', type: 'usage_within_quota' },
+        { id: 'INV-3', type: 'tenant_isolation' },
+        { id: 'INV-4', type: 'no_access_after_cancel' },
+        { id: 'INV-5', type: 'cache_db_consistent' },
+      ],
+    },
+  },
+  {
     id: 'upgrade-downgrade-race',
     name: 'upgrade-downgrade-race',
     title: 'Upgrade/Downgrade Race',
